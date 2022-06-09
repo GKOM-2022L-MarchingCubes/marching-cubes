@@ -1,7 +1,7 @@
 from tables import edgeTable, triTable, verticesOfEdge
 
 # min and max values that define the isosurface
-isomin = 0.501
+isomin = 0.001
 isomax = 1.0
 
 # 1, 2, 4, ..., 128
@@ -55,7 +55,7 @@ def cube_step(voxels: list[list[Voxel]]) -> list[Position]:
     edgesBits = edgeTable[cubeIdx]
     if (edgesBits == 0):
         return None
-    vertexPositions: list[Position] = [[None, None, None]] * 12
+    vertexPositions: list[Position] = [None] * 12
     for i, bit in zip(range(12), BIGBITS):
         # find vertices of edge, interpolate position
         if edgesBits & bit:
@@ -83,5 +83,5 @@ def interpolate(isomax: float, v1: Voxel, v2: Voxel) -> Position:
         return v2.position
     if (abs(v1.density - v2.density) < EPSILON):
         return v1.position
-    x: float = (isomax - v1.density) / (v2.density / v1.density)
+    x: float = (isomax - v1.density) / (v2.density - v1.density)
     return v1.position + Position(x, x, x) * (v2.position - v1.position)
