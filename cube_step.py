@@ -63,14 +63,16 @@ def cube_step(voxels: list[list[Voxel]]) -> list[Position]:
             vertexPositions[i] = interpolate(isomax, voxels[v1], voxels[v2])
 
     # Make as many triangles as necessary
-    triangles: list[Position] = []
+    triangles: list[list[Position]] = []
     for i in range(0, 15, 3):
         if triTable[cubeIdx][i] == -1:
             break
         # Make a triangle out of three vertices
-        triangles.append(vertexPositions[triTable[cubeIdx][i]])
-        triangles.append(vertexPositions[triTable[cubeIdx][i+1]])
-        triangles.append(vertexPositions[triTable[cubeIdx][i+2]])
+        triangle: list[Position] = []
+        triangle.append(vertexPositions[triTable[cubeIdx][i]])
+        triangle.append(vertexPositions[triTable[cubeIdx][i+1]])
+        triangle.append(vertexPositions[triTable[cubeIdx][i+2]])
+        triangles.append(triangle)
     return triangles
 
 
@@ -83,5 +85,6 @@ def interpolate(isomax: float, v1: Voxel, v2: Voxel) -> Position:
         return v2.position
     if (abs(v1.density - v2.density) < EPSILON):
         return v1.position
-    x: float = (isomax - v1.density) / (v2.density - v1.density)
+    #x: float = (isomax - v1.density) * abs(v2.density - v1.density)
+    x: float = 0.5
     return v1.position + Position(x, x, x) * (v2.position - v1.position)
