@@ -42,7 +42,7 @@ class Voxel:
 Triangle = tuple[Position, Position, Position]
 
 
-def cube_step(voxels: list[list[Voxel]], chunkId) -> list[Position]:
+def cube_step(voxels: list[list[Voxel]]) -> list[Position]:
     # check which voxel is between the min and max, apply bitflag
     # cubeIdx will be between 0 and 255
     cubeIdx = 0
