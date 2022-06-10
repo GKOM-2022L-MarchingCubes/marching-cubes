@@ -2,9 +2,9 @@ from io import TextIOWrapper
 import sys
 import os.path
 import json
-import numpy as np
-from cube_step import Position, Voxel, cube_step
 from typing import Optional
+import numpy as np
+from .cube_step import Position, Voxel, cube_step
 
 
 # constants
@@ -78,7 +78,6 @@ def calc_gradient(x: int, y: int, z: int, _list: list3d) -> Position:
     )
 
 def polygonise(x0, x1, y0, y1, z0, z1, _list: list3d):
-    global FACES
     v0 = make_voxel(x0, y0, z0, _list) # 000
     v1 = make_voxel(x1, y0, z0, _list) # 100
     v2 = make_voxel(x1, y1, z0, _list) # 110
@@ -88,7 +87,7 @@ def polygonise(x0, x1, y0, y1, z0, z1, _list: list3d):
     v6 = make_voxel(x1, y1, z1, _list) # 111
     v7 = make_voxel(x0, y1, z1, _list) # 011
     chunk = [v0, v1, v2, v3, v4, v5, v6, v7]
-    
+
     triangles = cube_step(chunk, ISOMIN, ISOMAX)
     for trig in triangles:
         vidxs = store_trig([x[0] for x in trig])
@@ -108,9 +107,7 @@ def polygonise_all(_list: list3d):
     TOTAL_VERTICES = len(VERTICES)
 
 
-def save_obj(out: TextIOWrapper):
-    global VERTICES
-    global FACES
+def save_obj(name: str, out: TextIOWrapper):
     out.write(f'o {name}\n')
     for v in VERTICES.keys():
         out.write(f'v {v}\n')
@@ -120,14 +117,15 @@ def save_obj(out: TextIOWrapper):
         out.write(f'f {f[0][2]}//{f[1][2]} {f[0][1]}//{f[1][1]} {f[0][0]}//{f[1][0]}\n')
 
 
-if __name__ == "__main__":
-    name = os.path.splitext(sys.argv[1])[0]
-    if len(sys.argv) > 2:
-        ISOMAX = float(sys.argv[2])
-    if len(sys.argv) > 3:
-        ISOMIN = float(sys.argv[3])
+def main(filepath: str, isomax: Optional[float] = None, isomin: Optional[float] = None):
+    global ISOMAX, ISOMIN, LENX, LENY, LENZ, TOTAL_CHUNKS
+    if isomax is not None:
+        ISOMAX = isomax
+    if isomin is not None:
+        ISOMIN = isomin
 
-    with open(sys.argv[1]) as file, open(name+'.obj', 'w') as out:
+    name = os.path.splitext(filepath)[0]
+    with open(filepath) as file, open(name+'.obj', 'w') as out:
         injson = json.load(file)
         _list: list3d
         LENX, LENY, LENZ = injson['lenx'], injson['leny'], injson['lenz']
@@ -136,4 +134,13 @@ if __name__ == "__main__":
 
         print()
         polygonise_all(_list)
-        save_obj(out)
+        save_obj(name.split('/')[-1].split('\\')[-1], out)
+
+
+if __name__ == "__main__":
+    if len(sys.argv) > 2:
+        ISOMAX = float(sys.argv[2])
+    if len(sys.argv) > 3:
+        ISOMIN = float(sys.argv[3])
+
+    main(sys.argv[1])

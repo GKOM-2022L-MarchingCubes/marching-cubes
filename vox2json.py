@@ -26,10 +26,14 @@ def convert(listv):
     return {'lenx': lenx, 'leny': leny, 'lenz': lenz, 'data': list3d}
 
 
-if __name__ == "__main__":
-    for path in sys.argv[1:]:
+def main(paths: list[str]):
+    for path in paths:
         with open(path) as file:
             templist = readlines(file)
             outjson = convert(templist)
             with open(os.path.splitext(path)[0]+'.json', 'w') as out:
                 json.dump(outjson, out)
+
+
+if __name__ == "__main__":
+    main(sys.argv[1:])

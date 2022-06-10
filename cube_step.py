@@ -1,5 +1,5 @@
-from tables import edgeTable, triTable, verticesOfEdge
 from typing import Optional
+from .tables import edgeTable, triTable, verticesOfEdge
 
 # 1, 2, 4, ..., 128
 BITS = [2**i for i in range(8)]
