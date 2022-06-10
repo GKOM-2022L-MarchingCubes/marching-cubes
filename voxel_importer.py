@@ -5,6 +5,8 @@ import os.path
 import json
 import numpy as np
 from cube_step import Position, Voxel, cube_step
+from typing import Optional
+
 
 # constants
 RANGE = 1
@@ -17,17 +19,17 @@ TOTAL_VERTICES = 0
 ISOMAX = 1.0
 ISOMIN = 0.001
 #                vertices ids         vertex normals ids
-FACES: list[tuple[int, int, int], tuple[int, int, int]] = []
+FACES: list[tuple[tuple[int, int, int], tuple[int, int, int]]] = []
 # vertices positions
 VERTICES: dict[Position, int] = {}
 # reverse map
-RE_VERTICES: list[Position] = [None]
+RE_VERTICES: list[Optional[int]] = [None]
 # vertex normals positions
 VERTEX_NORMALS: dict[Position, int] = {}
 # types
 list3d = list[list[list[float]]]
 
-def store_trig(trig: list[Position]):
+def store_trig(trig: list[Position]) -> tuple[int, int, int]:
     global VERTICES
     idxs = []
     for vertex in trig:
@@ -35,7 +37,17 @@ def store_trig(trig: list[Position]):
             VERTICES[vertex] = len(VERTICES.keys()) + 1
             RE_VERTICES.append(VERTICES[vertex])
         idxs.append(VERTICES[vertex])
-    return idxs
+    return tuple(idxs)
+
+
+def store_trig_normals(trig: list[Position]) -> tuple[int, int, int]:
+    global VERTEX_NORMALS
+    idxs = []
+    for normal in trig:
+        if normal not in VERTEX_NORMALS:
+            VERTEX_NORMALS[normal] = len(VERTEX_NORMALS.keys()) + 1
+        idxs.append(VERTEX_NORMALS[normal])
+    return tuple(idxs)
 
 
 def neighbors(start, stop):
@@ -43,18 +55,28 @@ def neighbors(start, stop):
     yield (i, i+1)
 
 
-def pad_border(_list: list3d):
+def pad_border(_list: list3d) -> list3d:
     nump = np.empty((LENX+2, LENY+2, LENZ+2))
     for x in range(1, LENX+1):
         for y in range(1, LENY+1):
             for z in range(1, LENZ+1):
                 nump[x][y][z] = _list[x-1][y-1][z-1]
-    return nump
+    return nump.tolist()
 
 
-def make_voxel(x:int, y:int, z:int, _list: list3d):
-    return Voxel(Position(RANGE*x/(LENX-1), RANGE*y/(LENY-1), RANGE*z/(LENZ-1)), _list[x][y][z])
+def make_voxel(x: int, y: int, z: int, _list: list3d):
+    return Voxel(
+        Position(RANGE*x/(LENX-1), RANGE*y/(LENY-1), RANGE*z/(LENZ-1)),
+        _list[x][y][z],
+        calc_gradient(x, y, z, _list)
+    )
 
+def calc_gradient(x: int, y: int, z: int, _list: list3d) -> Position:
+    return Position(
+        (_list[x + 1][y][z] if x < LENX + 1 else 0.0) - (_list[x - 1][y][z] if x > 0 else 0.0),
+        (_list[x][y + 1][z] if y < LENY + 1 else 0.0) - (_list[x][y - 1][z] if y > 0 else 0.0),
+        (_list[x][y][z + 1] if z < LENZ + 1 else 0.0) - (_list[x][y][z - 1] if z > 0 else 0.0)
+    )
 
 def polygonise(x0, x1, y0, y1, z0, z1, _list: list3d):
     global FACES
@@ -70,8 +92,9 @@ def polygonise(x0, x1, y0, y1, z0, z1, _list: list3d):
     
     triangles = cube_step(chunk, ISOMIN, ISOMAX)
     for trig in triangles:
-        vidxs = store_trig(trig)
-        FACES.append(vidxs, [])
+        vidxs = store_trig([x[0] for x in trig])
+        nidxs = store_trig_normals([x[1] for x in trig])
+        FACES.append((vidxs, nidxs))
 
 
 def polygonise_all(_list: list3d):
@@ -86,48 +109,6 @@ def polygonise_all(_list: list3d):
     TOTAL_VERTICES = len(VERTICES)
 
 
-# area of triangle
-def trigArea(trig):
-    # TODO
-    pass
-
-
-# normal of triangle
-def trigNormal(trig):
-    # TODO
-    pass
-
-
-# normal is a weighted sum of face normals
-def calculate_normal(idx, nFACES):
-    faces = np.where(idx in nFACES)
-    facenormals: np.array = None
-    faceareas: np.array = None
-    # for each face using this vertex, calculate normal
-    # TODO move elsewhere, calculate face normals only once
-    for face in faces:
-        triangle = np.array([RE_VERTICES[face[0]], RE_VERTICES[face[1]], RE_VERTICES[face[2]]])
-        facenormals.append(trigNormal(triangle))
-        faceareas.append(trigArea(triangle))
-    # vertex normal
-    vn = np.average(facenormals, axis=0, weigths=faceareas)
-    # TODO add to vertex normal dict
-    # add vertex normal id to faces
-    for face in faces:
-        # TODO
-        pass
-
-
-# calculate normals for all vertices
-def calculate_normal_all():
-    i = 1
-    nFACES = np.array(FACES)
-    for v in VERTICES.values():
-        print(f'Calculating vertex normals {i}/{TOTAL_VERTICES}\u001b[1A')
-        calculate_normal(v, nFACES)
-        i += 1
-
-
 def save_obj(out: TextIOWrapper):
     global VERTICES
     global FACES
@@ -137,15 +118,16 @@ def save_obj(out: TextIOWrapper):
     for vn in VERTEX_NORMALS.keys():
         out.write(f'vn {vn}\n')
     for f in FACES:
-        out.write(f'f {f[0][2]}/{f[1][2]} {f[0][1]}/{f[1][1]} {f[0][0]}/{f[1][0]}\n')
+        out.write(f'f {f[0][2]}//{f[1][2]} {f[0][1]}//{f[1][1]} {f[0][0]}//{f[1][0]}\n')
+        #out.write(f'f {f[0][2]} {f[0][1]} {f[0][0]}\n')
 
 
 if __name__ == "__main__":
     name = os.path.splitext(sys.argv[1])[0]
     if len(sys.argv) > 2:
-        ISOMAX = sys.argv[2]
+        ISOMAX = float(sys.argv[2])
     if len(sys.argv) > 3:
-        ISOMIN = sys.argv[3]
+        ISOMIN = float(sys.argv[3])
 
     with open(sys.argv[1]) as file, open(name+'.obj', 'w') as out:
         injson = json.load(file)
@@ -156,5 +138,4 @@ if __name__ == "__main__":
 
         print()
         polygonise_all(_list)
-        calculate_normal_all()
         save_obj(out)

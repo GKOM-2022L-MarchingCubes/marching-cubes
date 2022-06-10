@@ -1,4 +1,5 @@
 from tables import edgeTable, triTable, verticesOfEdge
+from typing import Optional
 
 # 1, 2, 4, ..., 128
 BITS = [2**i for i in range(8)]
@@ -15,16 +16,27 @@ class Position:
         self.z = z
     
     def __add__(self, other):
-        return Position(self.x + other.x, self.y + other.y, self.z + other.z)
+        if type(other) is Position:
+            return Position(self.x + other.x, self.y + other.y, self.z + other.z)
+        return Position(self.x + other, self.y + other, self.z + other)
     
     def __sub__(self, other):
-        return Position(self.x - other.x, self.y - other.y, self.z - other.z)
+        if type(other) is Position:
+            return Position(self.x - other.x, self.y - other.y, self.z - other.z)
+        return Position(self.x - other, self.y - other, self.z - other)
 
     def __mul__(self, other):
-        return Position(self.x * other.x, self.y * other.y, self.z * other.z)
+        if type(other) is Position:
+            return Position(self.x * other.x, self.y * other.y, self.z * other.z)
+        return Position(self.x * other, self.y * other, self.z * other)
 
-    def __div__(self, other):
-        return Position(self.x / other.x, self.y / other.y, self.z / other.z)
+    def __truediv__(self, other):
+        if type(other) is Position:
+            return Position(self.x / other.x, self.y / other.y, self.z / other.z)
+        return Position(self.x / other, self.y / other, self.z / other)
+
+    def __neg__(self):
+        return Position(-self.x, -self.y, -self.z)
     
     def __str__(self):
         return f'{self.x} {self.y} {self.z}'
@@ -40,15 +52,16 @@ class Position:
 
 
 class Voxel:
-    def __init__(self, position, density) -> None:
+    def __init__(self, position: Position, density: float, gradient: Position) -> None:
         self.position = position
         self.density = density
+        self.gradient = gradient
 
 
 Triangle = tuple[Position, Position, Position]
 
 
-def cube_step(voxels: list[list[Voxel]], isomin: float = 0.001, isomax: float = 1.0) -> list[list[Position]]:
+def cube_step(voxels: list[Voxel], isomin: float = 0.001, isomax: float = 1.0) -> list[list[tuple[Position, Position]]]:
     # check which voxel is between the min and max, apply bitflag
     # cubeIdx will be between 0 and 255
     cubeIdx = 0
@@ -61,23 +74,23 @@ def cube_step(voxels: list[list[Voxel]], isomin: float = 0.001, isomax: float = 
     edgesBits = edgeTable[cubeIdx]
     if (edgesBits == 0):
         return []
-    vertexPositions: list[Position] = [None] * 12
+    vertexData: list[Optional[tuple[Position, Position]]] = [None] * 12
     for i, bit in zip(range(12), BIGBITS):
         # find vertices of edge, interpolate position
         if edgesBits & bit:
             v1, v2 = verticesOfEdge[i]
-            vertexPositions[i] = interpolate(isomax, voxels[v1], voxels[v2])
+            vertexData[i] = (interpolate(isomax, voxels[v1], voxels[v2]), interpolateGradient(isomax, voxels[v1], voxels[v2]))
 
     # Make as many triangles as necessary
-    triangles: list[list[Position]] = []
+    triangles: list[list[tuple[Position, Position]]] = []
     for i in range(0, 15, 3):
         if triTable[cubeIdx][i] == -1:
             break
         # Make a triangle out of three vertices
-        triangle: list[Position] = []
-        triangle.append(vertexPositions[triTable[cubeIdx][i]])
-        triangle.append(vertexPositions[triTable[cubeIdx][i+1]])
-        triangle.append(vertexPositions[triTable[cubeIdx][i+2]])
+        triangle: list[tuple[Position, Position]] = []
+        triangle.append(vertexData[triTable[cubeIdx][i]])
+        triangle.append(vertexData[triTable[cubeIdx][i+1]])
+        triangle.append(vertexData[triTable[cubeIdx][i+2]])
         triangles.append(triangle)
     return triangles
 
@@ -94,3 +107,16 @@ def interpolate(isomax: float, v1: Voxel, v2: Voxel) -> Position:
     #x: float = (isomax - v1.density) * abs(v2.density - v1.density)
     x: float = 0.5
     return v1.position + Position(x, x, x) * (v2.position - v1.position)
+
+
+# Calculate the gradient interpolated between two points based on density and then normalized
+# (essentialy a vertex normal in the point of intersection)
+def interpolateGradient(isomax: float, v1: Voxel, v2: Voxel) -> Position:
+    assert abs(v1.density - v2.density) >= EPSILON
+    m1 = abs(isomax - v2.density) / abs(v2.density - v1.density)
+    m2 = abs(isomax - v1.density) / abs(v2.density - v1.density)
+    interpolated = -(v1.gradient * m1 + v2.gradient * m2)
+    length = (interpolated.x ** 2 + interpolated.y ** 2 + interpolated.z ** 2) ** 0.5
+    if length > 0:
+        interpolated = interpolated / length
+    return interpolated
