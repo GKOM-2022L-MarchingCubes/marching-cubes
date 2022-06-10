@@ -39,10 +39,10 @@ class Position:
         return Position(-self.x, -self.y, -self.z)
     
     def __str__(self):
-        return f'{self.x} {self.y} {self.z}'
+        return f'{self.x:f} {self.y:f} {self.z:f}'
 
     def __repr__(self):
-        return f'{self.x} {self.y} {self.z}'
+        return f'Position({self.x}, {self.y}, {self.z})'
     
     def __eq__(self, other):
         return self.x == other.x and self.y == other.y and self.z == other.z
@@ -81,8 +81,12 @@ def cube_step(voxels: list[Voxel], isomin: float = 0.001, isomax: float = 1.0) -
     for i, bit in zip(range(12), BIGBITS):
         # find vertices of edge, interpolate position
         if edgesBits & bit:
-            v1, v2 = verticesOfEdge[i]
-            vertexData[i] = (interpolate(isomax, voxels[v1], voxels[v2]), interpolateGradient(isomax, voxels[v1], voxels[v2]))
+            v1, v2 = tuple(map(lambda v: voxels[v], verticesOfEdge[i]))
+            denser, thinner = (v1, v2) if v1.density > v2.density else (v2, v1)
+            if thinner.density <= isomax <= denser.density:
+                vertexData[i] = (interpolate(isomax, denser, thinner), interpolateGradient(isomax, denser, thinner))
+            else:
+                vertexData[i] = (interpolate(isomin, denser, thinner), interpolateGradient(isomin, denser, thinner))
 
     # Make as many triangles as necessary
     triangles: list[list[tuple[Position, Position]]] = []
@@ -100,24 +104,16 @@ def cube_step(voxels: list[Voxel], isomin: float = 0.001, isomax: float = 1.0) -
 
 # Calculate the exact point of intersection in an edge based on density
 # p = p1 + (p2 - p1) * ( (isomax - v1) / (v2 - v1) )
-def interpolate(isomax: float, v1: Voxel, v2: Voxel) -> Position:
-    assert abs(v1.density - v2.density) >= EPSILON
-    if (abs(isomax - v1.density) < EPSILON):
-        return v1.position
-    if (abs(isomax - v2.density) < EPSILON):
-        return v2.position
-    m1 = abs(isomax - v2.density) / abs(v2.density - v1.density)
-    m2 = abs(isomax - v1.density) / abs(v2.density - v1.density)
-    return v1.position * m1 + v2.position * m2
+def interpolate(threshold: float, v1: Voxel, v2: Voxel) -> Position:
+    p = abs(threshold - v2.density) / abs(v2.density - v1.density)
+    return v1.position * p + v2.position * (1 - p)
 
 
 # Calculate the gradient interpolated between two points based on density and then normalized
 # (essentialy a vertex normal in the point of intersection)
-def interpolateGradient(isomax: float, v1: Voxel, v2: Voxel) -> Position:
-    assert abs(v1.density - v2.density) >= EPSILON
-    m1 = abs(isomax - v2.density) / abs(v2.density - v1.density)
-    m2 = abs(isomax - v1.density) / abs(v2.density - v1.density)
-    interpolated = -(v1.gradient * m1 + v2.gradient * m2)
+def interpolateGradient(threshold: float, v1: Voxel, v2: Voxel) -> Position:
+    p = abs(threshold - v2.density) / abs(v2.density - v1.density)
+    interpolated = -(v1.gradient * p + v2.gradient * (1 - p))
     length = (interpolated.x ** 2 + interpolated.y ** 2 + interpolated.z ** 2) ** 0.5
     if length > 0:
         interpolated = interpolated / length

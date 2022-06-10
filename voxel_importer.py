@@ -1,6 +1,5 @@
 from io import TextIOWrapper
 import sys
-import math
 import os.path
 import json
 import numpy as np
