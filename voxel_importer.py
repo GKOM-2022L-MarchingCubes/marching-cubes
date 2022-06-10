@@ -1,5 +1,6 @@
 from io import TextIOWrapper
 import sys
+import math
 import os.path
 import json
 import numpy as np
@@ -11,10 +12,18 @@ RANGE = 1
 LENX = 0
 LENY = 0
 LENZ = 0
+TOTAL_CHUNKS = 0
+TOTAL_VERTICES = 0
 ISOMAX = 1.0
 ISOMIN = 0.001
-FACES: list[tuple[int, int, int]] = []
+#                vertices ids         vertex normals ids
+FACES: list[tuple[int, int, int], tuple[int, int, int]] = []
+# vertices positions
 VERTICES: dict[Position, int] = {}
+# reverse map
+RE_VERTICES: list[Position] = [None]
+# vertex normals positions
+VERTEX_NORMALS: dict[Position, int] = {}
 # types
 list3d = list[list[list[float]]]
 
@@ -24,6 +33,7 @@ def store_trig(trig: list[Position]):
     for vertex in trig:
         if vertex not in VERTICES:
             VERTICES[vertex] = len(VERTICES.keys()) + 1
+            RE_VERTICES.append(VERTICES[vertex])
         idxs.append(VERTICES[vertex])
     return idxs
 
@@ -61,18 +71,61 @@ def polygonise(x0, x1, y0, y1, z0, z1, _list: list3d):
     triangles = cube_step(chunk, ISOMIN, ISOMAX)
     for trig in triangles:
         vidxs = store_trig(trig)
-        FACES.append(vidxs)
+        FACES.append(vidxs, [])
 
 
 def polygonise_all(_list: list3d):
-    total = (LENX+1)*(LENY+1)*(LENZ+1)
+    global TOTAL_VERTICES
     i = 1
     for x0, x1 in neighbors(0, LENX+2):
         for y0, y1 in neighbors(0, LENY+2):
             for z0, z1 in neighbors(0, LENZ+2):
-                print(f'Processing chunk {i}/{total}\u001b[1A')
+                print(f'Polygonising chunk {i}/{TOTAL_CHUNKS}\u001b[1A')
                 polygonise(x0, x1, y0, y1, z0, z1, _list)
                 i += 1
+    TOTAL_VERTICES = len(VERTICES)
+
+
+# area of triangle
+def trigArea(trig):
+    # TODO
+    pass
+
+
+# normal of triangle
+def trigNormal(trig):
+    # TODO
+    pass
+
+
+# normal is a weighted sum of face normals
+def calculate_normal(idx, nFACES):
+    faces = np.where(idx in nFACES)
+    facenormals: np.array = None
+    faceareas: np.array = None
+    # for each face using this vertex, calculate normal
+    # TODO move elsewhere, calculate face normals only once
+    for face in faces:
+        triangle = np.array([RE_VERTICES[face[0]], RE_VERTICES[face[1]], RE_VERTICES[face[2]]])
+        facenormals.append(trigNormal(triangle))
+        faceareas.append(trigArea(triangle))
+    # vertex normal
+    vn = np.average(facenormals, axis=0, weigths=faceareas)
+    # TODO add to vertex normal dict
+    # add vertex normal id to faces
+    for face in faces:
+        # TODO
+        pass
+
+
+# calculate normals for all vertices
+def calculate_normal_all():
+    i = 1
+    nFACES = np.array(FACES)
+    for v in VERTICES.values():
+        print(f'Calculating vertex normals {i}/{TOTAL_VERTICES}\u001b[1A')
+        calculate_normal(v, nFACES)
+        i += 1
 
 
 def save_obj(out: TextIOWrapper):
@@ -81,8 +134,10 @@ def save_obj(out: TextIOWrapper):
     out.write(f'o {name}\n')
     for v in VERTICES.keys():
         out.write(f'v {v}\n')
+    for vn in VERTEX_NORMALS.keys():
+        out.write(f'vn {vn}\n')
     for f in FACES:
-        out.write(f'f {f[2]} {f[1]} {f[0]}\n')
+        out.write(f'f {f[0][2]}/{f[1][2]} {f[0][1]}/{f[1][1]} {f[0][0]}/{f[1][0]}\n')
 
 
 if __name__ == "__main__":
@@ -96,8 +151,10 @@ if __name__ == "__main__":
         injson = json.load(file)
         _list: list3d
         LENX, LENY, LENZ = injson['lenx'], injson['leny'], injson['lenz']
+        TOTAL_CHUNKS = (LENX+1)*(LENY+1)*(LENZ+1)
         _list = pad_border(injson['data'])
 
         print()
         polygonise_all(_list)
+        calculate_normal_all()
         save_obj(out)
