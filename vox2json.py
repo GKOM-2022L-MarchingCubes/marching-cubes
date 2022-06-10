@@ -20,7 +20,7 @@ def convert(listv):
     maxx, maxy, maxz = np.max(numpylist[:,0], axis=0), np.max(numpylist[:,1], axis=0), np.max(numpylist[:,2], axis=0)
     lenx, leny, lenz = int(1+maxx-minx), int(1+maxy-miny), int(1+maxz)
     offsets = (-minx, -miny)
-    list3d = np.empty((lenx, leny, lenz)).tolist()
+    list3d = np.zeros((lenx, leny, lenz)).tolist()
     for x, y, z, density in listv:
         list3d[x+offsets[0]][y+offsets[1]][z] = density / 256
     return {'lenx': lenx, 'leny': leny, 'lenz': lenz, 'data': list3d}

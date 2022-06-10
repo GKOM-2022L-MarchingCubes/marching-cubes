@@ -56,7 +56,7 @@ def neighbors(start, stop):
 
 
 def pad_border(_list: list3d) -> list3d:
-    nump = np.empty((LENX+2, LENY+2, LENZ+2))
+    nump = np.zeros((LENX+2, LENY+2, LENZ+2))
     for x in range(1, LENX+1):
         for y in range(1, LENY+1):
             for z in range(1, LENZ+1):
@@ -119,7 +119,6 @@ def save_obj(out: TextIOWrapper):
         out.write(f'vn {vn}\n')
     for f in FACES:
         out.write(f'f {f[0][2]}//{f[1][2]} {f[0][1]}//{f[1][1]} {f[0][0]}//{f[1][0]}\n')
-        #out.write(f'f {f[0][2]} {f[0][1]} {f[0][0]}\n')
 
 
 if __name__ == "__main__":

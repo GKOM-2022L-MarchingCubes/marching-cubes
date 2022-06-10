@@ -57,6 +57,9 @@ class Voxel:
         self.density = density
         self.gradient = gradient
 
+    def __repr__(self):
+        return f'Voxel(position: {self.position}, density: {self.density}, gradient: {self.gradient})'
+
 
 Triangle = tuple[Position, Position, Position]
 
@@ -98,15 +101,14 @@ def cube_step(voxels: list[Voxel], isomin: float = 0.001, isomax: float = 1.0) -
 # Calculate the exact point of intersection in an edge based on density
 # p = p1 + (p2 - p1) * ( (isomax - v1) / (v2 - v1) )
 def interpolate(isomax: float, v1: Voxel, v2: Voxel) -> Position:
+    assert abs(v1.density - v2.density) >= EPSILON
     if (abs(isomax - v1.density) < EPSILON):
         return v1.position
     if (abs(isomax - v2.density) < EPSILON):
         return v2.position
-    if (abs(v1.density - v2.density) < EPSILON):
-        return v1.position
-    #x: float = (isomax - v1.density) * abs(v2.density - v1.density)
-    x: float = 0.5
-    return v1.position + Position(x, x, x) * (v2.position - v1.position)
+    m1 = abs(isomax - v2.density) / abs(v2.density - v1.density)
+    m2 = abs(isomax - v1.density) / abs(v2.density - v1.density)
+    return v1.position * m1 + v2.position * m2
 
 
 # Calculate the gradient interpolated between two points based on density and then normalized
