@@ -1,9 +1,5 @@
 from tables import edgeTable, triTable, verticesOfEdge
 
-# min and max values that define the isosurface
-isomin = 0.001
-isomax = 1.0
-
 # 1, 2, 4, ..., 128
 BITS = [2**i for i in range(8)]
 # ditto for up to 2048
@@ -30,8 +26,17 @@ class Position:
     def __div__(self, other):
         return Position(self.x / other.x, self.y / other.y, self.z / other.z)
     
+    def __str__(self):
+        return f'{self.x} {self.y} {self.z}'
+
     def __repr__(self):
-        return f'({self.x}, {self.y}, {self.z})'
+        return f'{self.x} {self.y} {self.z}'
+    
+    def __eq__(self, other):
+        return self.x == other.x and self.y == other.y and self.z == other.z
+
+    def __hash__(self):
+        return hash((self.x, self.y, self.z))
 
 
 class Voxel:
@@ -39,10 +44,11 @@ class Voxel:
         self.position = position
         self.density = density
 
+
 Triangle = tuple[Position, Position, Position]
 
 
-def cube_step(voxels: list[list[Voxel]]) -> list[Position]:
+def cube_step(voxels: list[list[Voxel]], isomin: float = 0.001, isomax: float = 1.0) -> list[list[Position]]:
     # check which voxel is between the min and max, apply bitflag
     # cubeIdx will be between 0 and 255
     cubeIdx = 0
@@ -54,7 +60,7 @@ def cube_step(voxels: list[list[Voxel]]) -> list[Position]:
     # if there's no intersection, quit
     edgesBits = edgeTable[cubeIdx]
     if (edgesBits == 0):
-        return None
+        return []
     vertexPositions: list[Position] = [None] * 12
     for i, bit in zip(range(12), BIGBITS):
         # find vertices of edge, interpolate position
