@@ -1,8 +1,9 @@
+import argparse
 from io import TextIOWrapper
-import numpy as np
-import sys
-import os.path
 import json
+import os.path
+import pathlib
+import numpy as np
 
 def readlines(file: TextIOWrapper):
     templist = []
@@ -26,14 +27,22 @@ def convert(listv):
     return {'lenx': lenx, 'leny': leny, 'lenz': lenz, 'data': list3d}
 
 
-def main(paths: list[str]):
-    for path in paths:
-        with open(path) as file:
-            templist = readlines(file)
-            outjson = convert(templist)
-            with open(os.path.splitext(path)[0]+'.json', 'w') as out:
-                json.dump(outjson, out)
+def main(inpath: str, outpath: str):
+    with open(inpath) as file:
+        templist = readlines(file)
+    outjson = convert(templist)
+    with open(os.path.splitext(outpath)[0]+'.json', 'w') as out:
+        json.dump(outjson, out)
 
+
+parser = argparse.ArgumentParser(description='Voxel format converter.')
+parser.add_argument('input', type=pathlib.Path,
+    help='path to voxel data (stored as a point cloud) in PLY format')
+parser.add_argument('output', type=pathlib.Path, nargs='?',
+    help='path where output voxel data (in internal JSON format) should be stored')
 
 if __name__ == "__main__":
-    main(sys.argv[1:])
+    args = parser.parse_args()
+    if args.output is None:
+        args.output = pathlib.Path('.'.join(str(args.input.absolute()).split('.')[:-1] + ['obj']))
+    main(str(args.input.absolute()), str(args.output.absolute()))

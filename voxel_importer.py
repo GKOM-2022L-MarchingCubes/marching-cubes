@@ -1,11 +1,13 @@
+import argparse
 from io import TextIOWrapper
-import sys
-import os.path
 import json
+import pathlib
 from typing import Optional
 import numpy as np
 from .cube_step import Position, Voxel, cube_step
 
+
+DEBUG = False
 
 # constants
 RANGE = 1
@@ -98,12 +100,17 @@ def polygonise(x0, x1, y0, y1, z0, z1, _list: list3d):
 def polygonise_all(_list: list3d):
     global TOTAL_VERTICES
     i = 1
+    if DEBUG:
+        print()
     for x0, x1 in neighbors(0, LENX+2):
         for y0, y1 in neighbors(0, LENY+2):
             for z0, z1 in neighbors(0, LENZ+2):
-                print(f'Polygonising chunk {i}/{TOTAL_CHUNKS}\u001b[1A')
+                if DEBUG:
+                    print(f'Polygonising chunk {i}/{TOTAL_CHUNKS}\u001b[1A')
                 polygonise(x0, x1, y0, y1, z0, z1, _list)
                 i += 1
+    if DEBUG:
+        print()
     TOTAL_VERTICES = len(VERTICES)
 
 
@@ -117,30 +124,42 @@ def save_obj(name: str, out: TextIOWrapper):
         out.write(f'f {f[0][2]}//{f[1][2]} {f[0][1]}//{f[1][1]} {f[0][0]}//{f[1][0]}\n')
 
 
-def main(filepath: str, isomax: Optional[float] = None, isomin: Optional[float] = None):
+def main(infilepath: str, outfilepath: str, isomax: Optional[float] = None, isomin: Optional[float] = None):
     global ISOMAX, ISOMIN, LENX, LENY, LENZ, TOTAL_CHUNKS
     if isomax is not None:
         ISOMAX = isomax
     if isomin is not None:
         ISOMIN = isomin
 
-    name = os.path.splitext(filepath)[0]
-    with open(filepath) as file, open(name+'.obj', 'w') as out:
-        injson = json.load(file)
-        _list: list3d
-        LENX, LENY, LENZ = injson['lenx'], injson['leny'], injson['lenz']
-        TOTAL_CHUNKS = (LENX+1)*(LENY+1)*(LENZ+1)
-        _list = pad_border(injson['data'])
+    with open(infilepath) as f:
+        injson = json.load(f)
+    LENX, LENY, LENZ = injson['lenx'], injson['leny'], injson['lenz']
+    TOTAL_CHUNKS = (LENX+1)*(LENY+1)*(LENZ+1)
 
-        print()
-        polygonise_all(_list)
-        save_obj(name.split('/')[-1].split('\\')[-1], out)
+    _list = pad_border(injson['data'])
+    polygonise_all(_list)
+    with open(outfilepath, 'w') as f:
+        save_obj(outfilepath.split('/')[-1].split('\\')[-1], f)
 
+
+parser = argparse.ArgumentParser(description='Voxel to triangles converter (using the marching cube algorithm).')
+parser.add_argument('input', type=pathlib.Path,
+    help='path to voxel data in internal JSON format')
+parser.add_argument('output', type=pathlib.Path, nargs='?',
+    help='path where output OBJ file should be stored')
+parser.add_argument('--isomin', type=float, default=0.001,
+    help='lower bound for the density of voxels visualized as an isosurface (default: %(default)s)')
+parser.add_argument('--isomax', type=float, default=1.0,
+    help='upper bound for the density of voxels visualized as an isosurface (default: %(default)s)')
+parser.add_argument('--debug', type=bool, default=False,
+    help='should chunk progress be printed out (default: %(default)s)')
 
 if __name__ == "__main__":
-    if len(sys.argv) > 2:
-        ISOMAX = float(sys.argv[2])
-    if len(sys.argv) > 3:
-        ISOMIN = float(sys.argv[3])
+    args = parser.parse_args()
+    ISOMAX = args.isomax
+    ISOMIN = args.isomin
+    DEBUG = args.debug
 
-    main(sys.argv[1])
+    if args.output is None:
+        args.output = pathlib.Path('.'.join(str(args.input.absolute()).split('.')[:-1] + ['obj']))
+    main(str(args.input.absolute()), str(args.output.absolute()))
